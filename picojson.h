@@ -61,6 +61,12 @@ extern "C" {
 }
 #endif
 
+// Floating point precision in decimal places
+// A value of zero switches off precision checking
+#ifndef PICOJSON_FLOAT_PRECISION
+#define PICOJSON_FLOAT_PRECISION 0
+#endif
+
 #ifndef PICOJSON_USE_RVALUE_REFERENCE
 #if (defined(__cpp_rvalue_references) && __cpp_rvalue_references >= 200610) || (defined(_MSC_VER) && _MSC_VER >= 1600)
 #define PICOJSON_USE_RVALUE_REFERENCE 1
@@ -443,6 +449,18 @@ MOVESET(object, object, u_.object_ = new object(std::move(_val));)
 #undef MOVESET
 #endif
 
+#ifndef DBL_EPSILON
+#if (PICOJSON_FLOAT_PRECISION == 0)
+#define PICOJSON_EPSILON 0.0
+#else
+#define PICOJSON_EPSILON pow(0.1, PICOJSON_FLOAT_PRECISION)
+#endif
+#endif
+
+inline bool is_zero(double a){
+    return (fabs(a) < PICOJSON_EPSILON);
+}
+
 inline bool value::evaluate_as_boolean() const {
   switch (type_) {
   case null_type:
@@ -450,7 +468,11 @@ inline bool value::evaluate_as_boolean() const {
   case boolean_type:
     return u_.boolean_;
   case number_type:
-    return u_.number_ != 0;
+#if (PICOJSON_FLOAT_PRECISION == 0)
+      return u_.number_ == 0;
+#else
+      return is_zero(u_.number_);
+#endif
 #ifdef PICOJSON_USE_INT64
   case int64_type:
     return u_.int64_ != 0;
@@ -514,8 +536,17 @@ inline std::string value::to_str() const {
 #endif
   case number_type: {
     char buf[256];
+#if (PICOJSON_FLOAT_PRECISION == 0)
     double tmp;
     SNPRINTF(buf, sizeof(buf), fabs(u_.number_) < (1ULL << 53) && modf(u_.number_, &tmp) == 0 ? "%.f" : "%.17g", u_.number_);
+#else
+    if(fabs(u_.number_) > 1.0){
+        SNPRINTF(buf, sizeof(buf), "%.f", u_.number_);
+    } else {
+        SNPRINTF(buf, sizeof(buf), "%s.%ug", "%",  PICOJSON_FLOAT_PRECISION);
+        SNPRINTF(buf, sizeof(buf), buf, u_.number_);
+    }
+#endif
 #if PICOJSON_USE_LOCALE
     char *decimal_point = localeconv()->decimal_point;
     if (strcmp(decimal_point, ".") != 0) {
@@ -1144,14 +1175,21 @@ inline const std::string &get_last_error() {
   return last_error_t<bool>::s;
 }
 
+inline bool double_comparison(double a, double b){
+    return (fabs(a - b) <= PICOJSON_EPSILON * std::fmax(fabs(a), fabs(b)));
+}
+
 inline bool operator==(const value &x, const value &y) {
   if (x.is<null>())
     return y.is<null>();
+#if (PICOJSON_FLOAT_PRECISION != 0)
+  if(x.is<double>())
+      return double_comparison(x.get<double>(), y.get<double>());
+#endif
 #define PICOJSON_CMP(type)                                                                                                         \
   if (x.is<type>())                                                                                                                \
   return y.is<type>() && x.get<type>() == y.get<type>()
   PICOJSON_CMP(bool);
-  PICOJSON_CMP(double);
   PICOJSON_CMP(std::string);
   PICOJSON_CMP(array);
   PICOJSON_CMP(object);
