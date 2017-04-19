@@ -25,75 +25,82 @@
 #include "picotest.h"
 
 struct test_t {
-    int num_tests;
-    int failed;
+	int num_tests;
+	int failed;
 };
 struct test_t main_tests, *cur_tests = &main_tests;
 static int test_level = 0;
 
 static void indent(void)
 {
-    int i;
-    for (i = 0; i != test_level; ++i)
-        printf("    ");
+	int i;
+
+	for (i = 0; i != test_level; ++i) {
+		printf("    ");
+	}
 }
 
-__attribute__((format (printf, 1, 2)))
+__attribute__((format(printf, 1, 2)))
 void note(const char *fmt, ...)
 {
-    va_list arg;
+	va_list arg;
 
-    indent();
-    printf("# ");
+	indent();
+	printf("# ");
 
-    va_start(arg, fmt);
-    vprintf(fmt, arg);
-    va_end(arg);
+	va_start(arg, fmt);
+	vprintf(fmt, arg);
+	va_end(arg);
 
-    printf("\n");
+	printf("\n");
 }
 
-__attribute__((format (printf, 2, 3)))
+__attribute__((format(printf, 2, 3)))
 void _ok(int cond, const char *fmt, ...)
 {
-    va_list arg;
+	va_list arg;
 
-    if (! cond)
-        cur_tests->failed = 1;
-    indent();
+	if (! cond) {
+		cur_tests->failed = 1;
+	}
 
-    printf("%s %d - ", cond ? "ok" : "not ok", ++cur_tests->num_tests);
-    va_start(arg, fmt);
-    vprintf(fmt, arg);
-    va_end(arg);
+	indent();
 
-    printf("\n");
+	printf("%s %d - ", cond ? "ok" : "not ok", ++cur_tests->num_tests);
+	va_start(arg, fmt);
+	vprintf(fmt, arg);
+	va_end(arg);
+
+	printf("\n");
 }
 
 int done_testing(void)
 {
-    indent();
-    printf("1..%d\n", cur_tests->num_tests);
-    return cur_tests->failed;
+	indent();
+	printf("1..%d\n", cur_tests->num_tests);
+	return cur_tests->failed;
 }
 
 void subtest(const char *name, void (*cb)(void))
 {
-    struct test_t test = {}, *parent_tests;
+	struct test_t test = {}, *parent_tests;
 
-    parent_tests = cur_tests;
-    cur_tests = &test;
-    ++test_level;
+	parent_tests = cur_tests;
+	cur_tests = &test;
+	++test_level;
 
-    note("Subtest: %s", name);
+	note("Subtest: %s", name);
 
-    cb();
+	cb();
 
-    done_testing();
+	done_testing();
 
-    --test_level;
-    cur_tests = parent_tests;
-    if (test.failed)
-        cur_tests->failed = 1;
-    _ok(! test.failed, "%s", name);
+	--test_level;
+	cur_tests = parent_tests;
+
+	if (test.failed) {
+		cur_tests->failed = 1;
+	}
+
+	_ok(! test.failed, "%s", name);
 }
